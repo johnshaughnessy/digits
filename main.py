@@ -16,19 +16,6 @@ samples = [tensor(Image.open(files.ls()[0])) for files in (path/'training').ls()
 stacks = [stack(dir) for dir in (path/'training').ls().sorted()]
 means = [s.mean(0) for s in stacks]
 
-def mnist_distance(a,b):
-    return (a-b).abs().mean((-1,-2))
-
-labels = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
-
-def scores(sample):
-    return [mnist_distance(sample, mean) for mean in means] 
-
-import numpy as np
-def classify(scores):
-    return labels[np.argmin(scores)]
-
-
 # Transform from list of matrices to list of arrays
 train_x = torch.cat(stacks).view(-1, 28*28)
 def filecount(dir):
@@ -42,17 +29,74 @@ valid_y = torch.cat([tensor([i]*filecount(path/'testing'/f'{i}')) for i in range
 dset = list(zip(train_x, train_y))
 valid_dset = list(zip(valid_x, valid_y))
 
-def init_params(size, std=1.0):
-    return (torch.randn(size)*std).requires_grad_()
+dl = DataLoader(dset, batch_size=256)
+valid_dl = DataLoader(valid_dset, batch_size=256)
 
-weights = init_params((28*28,1))
-bias = init_params(1)
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class MyModel(nn.Module):
+    def __init__(self):
+        super(MyModel, self).__init__()
+        
+        # Initialize alternating Linear and ReLU layers
+        layers = []
+        in_features = 784  # Input size based on 28x28 pixels
+        for _ in range(5):  # n pairs of Linear and ReLU
+            layers.append(nn.Linear(in_features, 128))  # Linear layer
+            layers.append(nn.ReLU())  # ReLU layer
+            in_features = 128  # Output size becomes input size for the next layer
+            
+        # Output layer
+        layers.append(nn.Linear(128, 10))  # 10 classes for output
+        
+        self.model = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.model(x)
+
+
 
 def mnist_loss(predictions, targets):
-    predictions = predictions.sigmoid()
-    return torch.where(targets==1, 
-                       
+    # Softmax for multi-class classification
+    predictions = torch.nn.functional.softmax(predictions, dim=1)
+    
+    # Convert targets to one-hot encoding
+    targets_one_hot = torch.nn.functional.one_hot(targets.squeeze(), num_classes=10)
+    
+    # Calculate the negative log likelihood
+    neg_log_likelihood = -torch.log(predictions + 1e-9)  # Adding epsilon to prevent log(0)
+    
+    # Multiply with one-hot targets and sum
+    loss = (targets_one_hot * neg_log_likelihood).sum(dim=1)
+    
+    return loss.mean()
+
 def calc_grad(xb, yb, model):
     preds = model(xb)
     loss = mnist_loss(preds, yb)
     loss.backward()
+
+from fastai.learner import Learner
+from fastai.data.core import DataLoaders
+from torch.utils.data import TensorDataset, DataLoader
+
+def accuracy(preds, targets):
+    preds = preds.argmax(dim=1)  # Get the index of the max value along dimension 1
+    return (preds == targets).float().mean()  # Compare with target and average
+
+# Your model and loss function
+model = MyModel()
+
+# Create DataLoader
+train_dset = TensorDataset(train_x, train_y)
+train_dl = DataLoader(train_dset, batch_size=64, shuffle=True)
+valid_dl = DataLoader(valid_dset, batch_size=64, shuffle=False)  # Assuming 'valid_dset' is your validation set
+dls = DataLoaders(train_dl, valid_dl)
+
+# Create Learner
+learner = Learner(dls, model, loss_func=mnist_loss, metrics=accuracy)  # Assuming 'accuracy' is defined or imported
+
+# Train
+learner.fit(10, lr=0.01)  # Train for 10 epochs with a learning rate of 0.01
