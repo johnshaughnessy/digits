@@ -87,18 +87,18 @@ def submit_to_kaggle(competition_name: str, file_path: str, comment: str):
 
 
 
-from IPython.display import display, HTML
-
-def notify(n, m):
-    html_str = """
-    <audio controls autoplay>
-      <source src="703380__sonically_sound__short-notification.wav" type="audio/wav">
-      Your browser does not support the audio element.
-    </audio>
-    """
-
-    for _ in range(m):
-        for _ in range(n):
-            display(HTML(html_str))
-            !sleep 0.25
-        !sleep 2
+# from IPython.display import display, HTML
+# 
+# def notify(n, m):
+#     html_str = """
+#     <audio controls autoplay>
+#       <source src="703380__sonically_sound__short-notification.wav" type="audio/wav">
+#       Your browser does not support the audio element.
+#     </audio>
+#     """
+# 
+#     for _ in range(m):
+#         for _ in range(n):
+#             display(HTML(html_str))
+#             !sleep 0.25
+#         !sleep 2
